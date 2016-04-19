@@ -66,8 +66,8 @@ sub main {
 
         $self->log("Filling database...\n");
 
-        $self->{eid_query}     = $self->{dbh}->prepare("SELECT entrez_id FROM genes.genes WHERE symbol = ? AND tax_id = 9606");
-        $self->{synonym_query} = $self->{dbh}->prepare("SELECT s.entrez_id FROM (SELECT entrez_id FROM genes.genes WHERE tax_id = 9606) AS g JOIN (SELECT entrez_id FROM genes.gene_synonyms WHERE symbol = ?) AS s ON g.entrez_id = s.entrez_id");
+        $self->{eid_query}     = $self->{dbh}->prepare("SELECT entrez_id FROM genes.genes WHERE symbol = ?");
+        $self->{synonym_query} = $self->{dbh}->prepare("SELECT entrez_id FROM genes.gene_synonyms WHERE symbol = ?");
         my $insert_query       = $self->{dbh}->prepare("INSERT IGNORE INTO interactions(entrez_id1, entrez_id2) VALUES (?, ?)");
 
 
