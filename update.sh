@@ -17,3 +17,6 @@ perl mitab.pl /home/HandenA/data/intact/intact.txt -v < auth 1> /dev/null
 
 echo "Updating BioGRID"
 perl mitab.pl /home/HandenA/data/BioGRID/BIOGRID-ALL-3.4.135.mitab.txt -v < auth 1> /dev/null
+
+echo "Updating PhosphoSite"
+perl phosphosite.pl /home/HandenA/data/phosphosite/Kinase_Substrate_Dataset -v < auth 1> /dev/null

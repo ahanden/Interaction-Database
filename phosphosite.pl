@@ -122,8 +122,9 @@ sub main {
             }
             $eid2 = $self->{eid_cache}->{$eid2};
 
-            my @eids1 = getEID($self,$symbol1);
+            my @eids1 = @{getEID($self,$symbol1)};
 
+            next unless $eid2;
             next unless @eids1;
 
             foreach my $eid1(@eids1) {
