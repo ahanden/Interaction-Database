@@ -201,6 +201,9 @@ sub main {
             # Only include human genes
             next unless $fields[9] =~ m/taxid:9606(\D|$)/ && $fields[10] =~ m/taxid:9606(\D|$)/;
 
+            # Skip genetic interactions
+            next if $fields[11] =~ m/psi-mi:"MI:(079\d|0208|0902|0910|0701)"/;
+
             # Get the Entrez IDs
             my(@eids1, @eids2);
             foreach my $id(split(/\|/,"$fields[0]|$fields[2]")) {
