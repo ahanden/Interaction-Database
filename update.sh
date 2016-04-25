@@ -31,6 +31,17 @@ perl phosphosite.pl /home/HandenA/data/phosphosite/Kinase_Substrate_Dataset -v <
 echo "Updating Rual et. al."
 perl tsv.pl /home/HandenA/data/rual_et_al.tsv -v < auth > /dev/null
 
+echo "Updating DFCI"
+perl tsv.pl /home/HandenA/data/rual_et_al.tsv -v < auth > /dev/null
+
+echo "Updating BioGRID"
+perl mitab.pl /home/HandenA/data/InnateDB/all.mitab -v < auth > /dev/null
+perl mitab.pl /home/HandenA/data/InnateDB/innatedb_all.mitab -v < auth > /dev/null
+perl mitab.pl /home/HandenA/data/InnateDB/innatedb_ppi.mitab -v < auth > /dev/null
+
+echo "Updating INstruct"
+perl sin.pl /ome/HandenA/data/INstruct/sapiens.sin -v < auth > /dev/null
+
 # Note - this update should be removed once the paper is included in the BioGRID download
 echo "Updating Huttlin et. al."
 perl tsv.pl /home/HandenA/data/huttlin_et_al.tsv -v < auth > /dev/null
