@@ -29,36 +29,6 @@ sub main {
         return 0;
     }
    
-    sub getEID {
-        my($self, $symbol) = @_;
-
-        if (exists($self->{eid_cache}{$symbol})) {
-            return $self->{eid_cache}{$symbol};
-        }
-
-        my $eid;
-
-        $self->{eid_query}->execute($symbol);
-        my $ref = $self->{eid_query}->fetch();
-        if(!$ref) {
-            $self->{synonym_query}->execute($symbol);
-            $ref = $self->{synonym_query}->fetch();
-            if(!$ref) {
-                print "Warning: Unable to find an Entrez ID for $symbol\n";
-            }
-            else {
-                $eid = $ref->[0];
-            }
-        }
-        else {
-            $eid = $ref->[0];
-        }
-
-        $self->{eid_cache}{$symbol} = $eid;
-
-        return $eid;
-    }
-
     sub exec_main {
         my $self = shift;
 
@@ -66,16 +36,10 @@ sub main {
 
         $self->log("Filling database...\n");
 
-        $self->{eid_query}     = $self->{dbh}->prepare("SELECT entrez_id FROM genes.genes WHERE symbol = ?");
-        $self->{synonym_query} = $self->{dbh}->prepare("SELECT entrez_id FROM genes.gene_synonyms WHERE symbol = ?");
-        my $insert_query       = $self->{dbh}->prepare("INSERT IGNORE INTO interactions(entrez_id1, entrez_id2) VALUES (?, ?)");
-
-
         my $wc = `wc -l $self->{fname}`;
         my ($total) = $wc =~ /(^\d+)/;
         $self->{prog_total} = $total;
 
-        $self->{eid_cache} = {};
         while (my $line = <$IN>) {
             $self->logProgress();
 
@@ -87,17 +51,17 @@ sub main {
 
             next if $sym1 eq "-" || $sym2 eq "-";
 
-            my $eid1 = getEID($self,$sym1);
-            my $eid2 = getEID($self,$sym2);
+            my @eids1 = @{$self->symbolToEID($sym1)};
+            my @eids2 = @{$self->symbolToEID($sym2)};
+            my @pmids = $terms[7] =~ /(\d+)/g;
 
-            next if !$eid1 || !$eid2;
-            next if $eid1 == $eid2;
-
-            if($eid1>$eid2){
-                ($eid1, $eid2) = ($eid2, $eid1);
+            next if !@eids1 || !@eids2;
+            foreach my $eid1(@eids1) {
+                foreach my $eid2(@eids2) {
+                    next if $eid1 == $eid2;
+                    $self->insertInteraction($eid1, $eid2, \@pmids);
+                }
             }
-            $insert_query->execute($eid1, $eid2);
-
         }
         close $IN;
         $self->log("\n");

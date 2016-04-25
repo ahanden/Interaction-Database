@@ -29,40 +29,12 @@ sub main {
         return 0;
     }
    
-    sub getEID {
-        my($self, $eid) = @_;
-
-        if(exists($self->{eid_cache}->{$eid})) {
-            return $self->{eid_cache}->{$eid};
-        }
-
-        $self->{eid_check}->execute($eid);
-        my $ref = $self->{eid_check}->fetch();
-        if($ref->[0]) {
-            $self->{eid_cache}->{$eid} = [$eid];
-            return [$eid];
-        }
-        else {
-            my @eids;
-            $self->{disc_query}->execute($eid);
-            while(my $ref = $self->{disc_query}->fetch()) {
-                push(@eids,$ref->[0]);
-            }
-            $self->{eid_cache}->{$eid} = \@eids;
-            return \@eids;
-        }
-    }
-
     sub exec_main {
         my $self = shift;
 
         open my $IN, '<', $self->{fname} or die "Failed to open $self->{fname}: $!\n";
 
         $self->log("Filling database...\n");
-
-        $self->{eid_check}  = $self->{dbh}->prepare("SELECT EXISTS(SELECT * FROM genes.genes WHERE entrez_id = ?)");
-        $self->{disc_query} = $self->{dbh}->prepare("SELECT entrez_id FROM genes.discontinued_genes WHERE discontinued_id = ?");
-        my $insert_query    = $self->{dbh}->prepare("INSERT IGNORE INTO interactions(entrez_id1, entrez_id2) VALUES (?, ?)");
 
         my $wc = `wc -l $self->{fname}`;
         my ($total) = $wc =~ /(^\d+)/;
@@ -72,21 +44,19 @@ sub main {
         while (my $line = <$IN>) {
             $self->logProgress();
 
+            next if $line =~ m/^#/;
             chomp $line;
-            my($gene1, $gene2) = split(/\t/,$line);
+            my($gene1, $gene2, $pmid) = split(/\t/,$line);
 
-            my @eid1 = getEID($self,$gene1);
-            my @eid2 = getEID($self,$gene2);
+            my @eids1 = @{$self->getValidEID($gene1)};
+            my @eids2 = @{$self->getValidEID($gene2)};
 
-            next if !@eid1 || !@eid2;
+            next if !@eids1 || !@eids2;
 
-            foreach my $g1(@eid1) {
-                foreach my $g2(@eid2) {
-                    next if $g1 == $g2;
-                    if($g1>$g2) {
-                        ($g1, $g2) = ($g2, $g1);
-                    }
-                    $insert_query->execute($g1, $g2);
+            foreach my $eid1(@eids1) {
+                foreach my $eid2(@eids2) {
+                    next if $eid1 == $eid2;
+                    $self->insertInteraction($eid1, $eid2, [$pmid]);
                 }
             }
         }
