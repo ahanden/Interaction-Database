@@ -85,10 +85,10 @@ sub main {
 
             # Get the Entrez IDs
             my(@eids1, @eids2);
-            foreach my $id(split(/\|/,"$fields[0]|$fields[2]")) {
+            foreach my $id(split(/\|/,"$fields[0]|$fields[2]|$fields[4]")) {
                 push(@eids1,@{getEIDs($self,$id)});
             }
-            foreach my $id(split(/\|/,"$fields[1]|$fields[3]")) {
+            foreach my $id(split(/\|/,"$fields[1]|$fields[3]|$fields[5]")) {
                 push(@eids2,@{getEIDs($self,$id)});
             }
 
