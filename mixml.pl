@@ -31,7 +31,7 @@ sub main {
         'hprd'                   => 'HPRD',
         'hgnc'                   => 'HGNC:HGNC',
         'tair'                   => 'TAIR',
-
+        'gb'                     => 'GenBank',
     );
 
     # Tracking Variables
@@ -58,12 +58,16 @@ sub main {
     sub checkArgs {
         my $self = shift;
 
-        my ($verbose, $int_cnf, $gen_cnf);
-        if(GetOptions('verbose' => \$verbose, 'interactions_cnf=s' => \$int_cnf, 'genes_cnf=s' => \$gen_cnf)  && @ARGV == 1) {
+        my ($verbose, $int_cnf, $gen_cnf, $species);
+        if(GetOptions('verbose' => \$verbose, 
+                'interactions_cnf=s' => \$int_cnf,
+                'species=s' => \$species,
+                'genes_cnf=s' => \$gen_cnf)  && @ARGV == 1) {
             $self->{fname}    = $ARGV[0];
             $self->{cnf_file} = $int_cnf or die "You must provide a cnf file for access to the interactions database\n";
             $self->{gen_cnf}  = $gen_cnf or die "You must provide a cnf file for access to the genes database\n";
             $self->{verbose}  = $verbose;
+            $self->{species}  = $species ? $species : "9606";
 
             Gene::connectDB($self->{gen_cnf});
 
@@ -167,9 +171,9 @@ sub main {
             my @participants = @{$interaction{participants}};
 
             for(my $i = 0; $i < @participants; $i++) {
-                next unless $participants[$i]->{organism} == 9606;
+                next unless $participants[$i]->{organism} eq $self_handle->{species};
                 foreach(my $j = $i + 1; $j < @participants; $j++) {
-                    next unless $participants[$j]->{organism} == 9606;
+                    next unless $participants[$j]->{organism} eq $self_handle->{species};
                     if(@{$interaction{experiments}}) {
                         foreach my $experiment(@{$interaction{experiments}}) {
                             $int_count += $self_handle->insertInteraction($participants[$i], $participants[$j], $experiment->{det_type}, $interaction{type}, $experiment->{pmids});

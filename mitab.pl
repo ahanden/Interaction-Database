@@ -18,55 +18,33 @@ sub main {
     use base ("Update");
     use Getopt::Long;
 
-    my %db_map = ();
+    my %db_map = (
+        "uniprotkb"            => "UniProt",
+        "entrezgene/locuslink" => "Entrez",
+        "ensembl"              => "Ensembl",
+        "mirbase"              => "miRBase",
+        "tair"                 => "TAIR",
+        "genbank identifier"   => "GenBank",
+        "refseq"               => "RefSeq"
+    );
 
     sub checkArgs {
         my $self = shift;
 
-        my ($verbose, $int_cnf, $gen_cnf);
-        if(GetOptions('verbose' => \$verbose, 'interactions_cnf=s' => \$int_cnf, 'genes_cnf=s' => \$gen_cnf)  && @ARGV == 1) {
+        my ($verbose, $int_cnf, $gen_cnf, $species);
+        if(GetOptions('verbose' => \$verbose,
+                    'interactions_cnf=s' => \$int_cnf,
+                    'species=s' => \$species,
+                    'genes_cnf=s' => \$gen_cnf)  && @ARGV == 1) {
             $self->{fname}    = $ARGV[0];
             $self->{cnf_file} = $int_cnf or die "You must provide a cnf file for access to the interactions database\n";
             $self->{gen_cnf}  = $gen_cnf or die "You must provide a cnf file for access to the genes database\n";
             $self->{verbose}  = $verbose;
+            $self->{species}  = $species ? $species : "9606";
 
             return 1;
         }
         return 0;
-    }
-
-    sub getEIDs {
-        my($self, $other_id) = @_;
-        # Check for secret symbol from InnateDB format
-        if($other_id =~ m/^.*?:(.*)\(display_short\)$/) {
-            return $self->{gq}->symbolToEID($1);
-        }
-        # Check for valid Entrez IDs
-        if($other_id =~ m/entrez\s?gene\/locuslink:(\d+)$/) {
-            return $self->{gq}->getValidEID($1);
-        }
-        # Check for gene symbols
-        elsif($other_id =~ m/entrez\s?gene\/locuslink:([A-za-z]*:?[A-Za-z0-9\-.'_\/,\(\)*#+~;]+\s?[A-Za-z0-9\-.'_\/\(\)]*(\[[0-9:]+\])?@?)[$|(]/) {
-            return $self->{gq}->symbolToEID($1);
-        }
-        # Check for UniProt IDs
-        elsif($other_id =~ m/uniprotkb:([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2})/) {
-            return $self->{gq}->crossToEID($1,'UniProt');
-        }
-        # Check for Ensembl IDs
-        elsif($other_id =~ m/ensembl:(\w*?(E|FM|G|GT|P|R|T)\d+)/){
-            return $self->{gq}->crossToEID($1,'Ensembl');
-        }
-        # Check for miRBase IDs
-        elsif($other_id =~ m/mirbase:(MI\d{7})/) {
-            return $self->{gq}->crossToEID($1,'miRBase');
-        }
-        # Check for TAIR IDs
-        elsif($other_id =~ m/tair:(AT[0-9]G[0-9]\{5\})/) {
-            return $self->{gq}->crossToEID($1,'TAIR');
-        }
-        # Any other label gets ignored
-        return [];
     }
 
     sub exec_main {
@@ -91,7 +69,7 @@ sub main {
             my @fields = split(/\t/,$line);
 
             # Only include human genes
-            next unless $fields[9] =~ m/taxid:9606(\D|$)/ && $fields[10] =~ m/taxid:9606(\D|$)/;
+            next unless $fields[9] =~ m/(\D|^)$self->{species}(\D|$)/ && $fields[10] =~ m/(\D|^)$self->{species}(\D|$)/;
 
             # Get the Entrez IDs
             my $gene1 = Gene->new();
@@ -143,7 +121,7 @@ sub main {
             my @pmids = $fields[8] =~ /pubmed:(\d+)/g;
 
             # Insert interactions
-            $self->insertInteraction($gene1, $gene2, $detection_method, $interaction_type, \@pmids);
+            $self->insertInteraction($gene1, $gene2, $detection_method, $interaction_type, \@pmids)
         }
         close $IN;
         $self->log("\n");
