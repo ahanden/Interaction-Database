@@ -11,6 +11,7 @@ package Update;
 use strict;
 use DBI;
 use Term::ReadKey;
+use Gene;
 
 # Updater initialization
 sub new {
@@ -35,24 +36,11 @@ sub new {
     }
 
     if(!$self->{dbh}) {
-        $self->{dbh} = Update::connectDB();
+        $self->connectDB();
     }
 
     $self->{insert_query}   = $self->{dbh}->prepare("INSERT INTO interactions (entrez_id1, entrez_id2) VALUES (?, ?) ON DUPLICATE KEY UPDATE int_id=LAST_INSERT_ID(int_id)");
-    $self->{insert_pmid}    = $self->{dbh}->prepare("INSERT IGNORE INTO publications (int_id, pubmed_id) VALUES (?, ?)");
-
-    $self->{eid_check}      = $self->{dbh}->prepare("SELECT EXISTS(SELECT * FROM genes.genes WHERE entrez_id = ?)");
-    $self->{disc_eid_check} = $self->{dbh}->prepare("SELECT entrez_id FROM genes.discontinued_genes WHERE discontinued_id = ?");
-
-    $self->{symbol_check}   = $self->{dbh}->prepare("SELECT entrez_id FROM genes.genes WHERE symbol = ?");
-    $self->{disc_sym_check} = $self->{dbh}->prepare("SELECT entrez_id FROM genes.discontinued_genes WHERE discontinued_symbol = ?");
-    $self->{synonym_check}  = $self->{dbh}->prepare("SELECT entrez_id FROM genes.gene_synonyms WHERE symbol = ?");
-
-    $self->{cross_check}    = $self->{dbh}->prepare("SELECT entrez_id FROM genes.gene_xrefs WHERE Xref_id = ? AND Xref_db = ?");
-    
-    $self->{eid_cache}    = {};
-    $self->{symbol_cache} = {};
-    $self->{cross_cache}  = {};
+    $self->{insert_details} = $self->{dbh}->prepare("INSERT IGNORE INTO sources (int_id, pubmed_id, detection_method, int_type) VALUES (?, ?, ?, ?)");
 
     return $self;
 }
@@ -105,29 +93,36 @@ sub usage {
 sub connectDB {
     my $self = shift;
 
-    ReadMode 1;
-    print "dbname: ";
-    my $db = <STDIN>;
-    chomp $db;
-    ReadMode 1;
-    print "username: ";
-    my $user = <STDIN>;
-    chomp $user;
-    ReadMode 2;
-    print "password: ";
-    my $password = <STDIN>;
-    print "\n";
-    chomp $password;
-    ReadMode 1;
+    if($self->{cnf_file}) {
+        use Cwd 'abs_path';
+        my $path = abs_path($self->{cnf_file});
+        my $dsn = "DBI:mysql:;mysql_read_default_file=$path";
+        $self->{dbh} = DBI->connect($dsn, undef, undef, {RaiseError => 1, AutoCommit => 0}) or die;
+    }
+    else {
+        ReadMode 1;
+        print "interaction dbname: ";
+        my $db = <STDIN>;
+        chomp $db;
+        ReadMode 1;
+        print "username: ";
+        my $user = <STDIN>;
+        chomp $user;
+        ReadMode 2;
+        print "password: ";
+        my $password = <STDIN>;
+        print "\n";
+        chomp $password;
+        ReadMode 1;
 
-    my $dbh = DBI->connect("dbi:mysql:$db:localhost",$user,$password,
-        {RaiseError => 1, AutoCommit => 0}) or die;
-
-    if($self->{debug}) {
-        $dbh->trace(2);
+        $self->{dbh} = DBI->connect("dbi:mysql:$db:localhost",$user,$password,
+            {RaiseError => 1, AutoCommit => 0}) or die;
     }
 
-    return $dbh;
+    if($self->{debug}) {
+        $self->{dbh}->trace(2);
+    }
+
 }
 
 # For progress bars
@@ -142,8 +137,10 @@ sub logProgress {
 # Inserts an interaction into the database
 sub insertInteraction {
     my $self = shift;
-    my $eid1 = shift;
-    my $eid2 = shift;
+    my $gene1 = shift;
+    my $gene2 = shift;
+    my $detection_method = shift;
+    my $interaction_type = shift;
 
     my @pmids;
     my $ref = shift;
@@ -151,101 +148,26 @@ sub insertInteraction {
         @pmids = @$ref;
     }
 
-    if($eid1>$eid2){
-        ($eid1, $eid2) = ($eid2, $eid1);
-    }
-    $self->{insert_query}->execute($eid1, $eid2);
+    my $count = 0;
 
-    my $iid = $self->{insert_query}->{mysql_insertid};
-    foreach my $pmid(@pmids) {
-        $self->{insert_pmid}->execute($iid,$pmid);
-    }
-
-}
-
-# Check an Entrez ID
-sub getValidEID {
-    my($self, $eid) = @_;
-
-    # Perform queries if the Entrez ID is not in our cache
-    if (!exists($self->{eid_cache}->{$eid})) {
-        # Check whether the given Entrez ID is valid
-        $self->{eid_check}->execute($eid);
-        if($self->{eid_check}->fetch()->[0]) {
-            $self->{eid_cache}->{$eid} = [$eid];
-        }
-        else {
-            # Check if the given Entrez ID corresponds to a discontinued ID
-            my @eids;
-            $self->{disc_eid_check}->execute($eid);
-            while(my $ref = $self->{disc_eid_check}->fetch()) {
-                push(@eids,$ref->[0]);
-            }
-            if(!@eids) {
-                print "Warning: Unable to find a human gene relating to Entrez ID $eid\n";
-            }
-            $self->{eid_cache}->{$eid} = \@eids;
-        }
-    }
-    return $self->{eid_cache}->{$eid};
-}
-
-# Get an EID from a symbol
-sub symbolToEID {
-    my($self, $symbol) = @_;
-
-    # Perform queries if the symbol is not in our cache
-    if(!exists($self->{symbol_cache}->{$symbol})) {
-        my @eids;
-        # Check if the symbol is a standard, valid symbol
-        $self->{symbol_check}->execute($symbol);
-        while(my $ref = $self->{symbol_check}->fetch()) {
-            push(@eids,$ref->[0]);
-        }
-        # Check if the given symbol has been discontinued
-        if(!@eids) {
-            $self->{disc_sym_check}->execute($symbol);
-            while(my $ref = $self->{disc_sym_check}->fetch()) {
-                push(@eids,$ref->[0]);
+    foreach my $eid1($gene1->getEIDs()) {
+        foreach my $eid2($gene2->getEIDs()) {
+            # Skip self interactions
+            next if $eid1 == $eid2;
+            # Sort interacting pairs
+            if($eid1>$eid2){ ($eid1, $eid2) = ($eid2, $eid1); }
+            # Insert it
+            $count++;
+            $self->{insert_query}->execute($eid1, $eid2);
+            my $iid = $self->{insert_query}->{mysql_insertid};
+            foreach my $pmid(@pmids) {
+                $self->{insert_details}->execute($iid, $pmid, $detection_method, $interaction_type);
             }
         }
-        # See if the given symbol is a synonym
-        if(!@eids) {
-            $self->{synonym_check}->execute($symbol);
-            while(my $ref = $self->{synonym_check}->fetch()) {
-                push(@eids,$ref->[0]);
-            }
-        }
-        # If nothing comes up, report it
-        if(!@eids) {
-            print "Warning: Unable to find a valid Entrez ID for input symbol $symbol\n";
-        }
-        $self->{symbol_cache}->{$symbol} = \@eids;
-    }
-    return $self->{symbol_cache}->{$symbol};
-}
-
-# Gets an Entrez ID from an alternative identifier
-sub crossToEID {
-    my($self, $id, $db) = @_;
-
-    # Initialize the cache if it isn't already
-    if(!exists($self->{cross_cache}->{$db})) {
-        $self->{cross_cache}->{$db} = {};
     }
 
-    if(!exists($self->{cross_cache}->{$db}->{$id})) {
-        my @eids;
-        $self->{cross_check}->execute($id,$db);
-        while(my $ref = $self->{cross_check}->fetch()) {
-            push(@eids,$ref->[0]);
-        }
-        if(!@eids) {
-            print "Warning: Unable to find a valid Entrez ID for id $id in database $db\n";
-        }
-        $self->{cross_cache}->{$db}->{$id} = \@eids;
-    }
-    return $self->{cross_cache}->{$db}->{$id};
+    # Returns the number of inserted interactions
+    return $count;
 }
 
 1;
