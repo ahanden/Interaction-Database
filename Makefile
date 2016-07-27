@@ -74,7 +74,7 @@ $(DATA_DIR)/mint-full-complexes.mitab26.txt :
 MatrixDB : structure gen.cnf $(DATA_DIR)/matrixdb_CORE.tab 
 	perl mitab.pl -i int.cnf -g gen.cnf $(DATA_DIR)/matrixdb_CORE.tab
 $(DATA_DIR)/matrixdb_CORE.tab :
-	wget http://matrixdb.ibcp.fr/download/matrixdb_CORE.tab.gz --output-document=$(DATA_DIR)/matrixdb_CORE.tab.gz
+	wget http://matrixdb.univ-lyon1.fr/download/matrixdb_CORE.tab.gz --output-document=$(DATA_DIR)/matrixdb_CORE.tab.gz
 	gunzip $(DATA_DIR)/matrixdb_CORE.tab.gz
 
 # Remove the data files
@@ -95,6 +95,7 @@ int.cnf :
 	@read -p "Database: " db; echo "database=$$db" >> int.cnf
 	@read -p "Username: " user; echo "user=$$user" >> int.cnf
 	@read -s -p "Password: " passwd; echo "password=$$passwd" >> int.cnf
+	@echo
 	chmod 400 int.cnf
 
 # Gene database credentials
@@ -105,4 +106,5 @@ gen.cnf :
 	@read -p "Database: " db; echo "database=$$db" >> gen.cnf
 	@read -p "Username: " user; echo "user=$$user" >> gen.cnf
 	@read -s -p "Password: " passwd; echo "password=$$passwd" >> gen.cnf
+	@echo
 	chmod 400 gen.cnf
