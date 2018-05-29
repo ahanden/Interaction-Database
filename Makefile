@@ -5,7 +5,8 @@ DATA_DIR ?= data
 
 SPECIES=9606
 
-all : DIP BioGRID CORUM InnateDB IntAct MINT MatrixDB
+#all : DIP BioGRID CORUM InnateDB IntAct MINT MatrixDB
+all : DIP BioGRID InnateDB IntAct MINT MatrixDB
 	DB=$$(grep -P "^database=" int.cnf | sed 's/^database=//'); \
 	mysqldump --defaults-file=int.cnf $$DB > $(DATA_DIR)/backup.sql
 	tar -cvf backup.$(DATE).tar $(DATA_DIR)/
@@ -33,11 +34,9 @@ $(DATA_DIR)/BIOGRID-ALL-LATEST.mitab.txt :
 
 # CORUM
 CORUM : structure gen.cnf $(DATA_DIR)/corum_psimi_release090109.xml
-	perl mixml.pl -i int.cnf -g gen.cnf $(DATA_DIR)/corum_psimi_release090109.xml
+	perl mixml.pl -i int.cnf -g gen.cnf $(DATA_DIR)/allComplexes.psimi
 $(DATA_DIR)/corum_psimi_release090109.xml :
-	wget http://mips.helmholtz-muenchen.de/genre/export/sites/default/corum/allComplexes.psimi.zip --output-document=$(DATA_DIR)/allComplexes.psimi.zip
-	unzip $(DATA_DIR)/allComplexes.psimi.zip -d $(DATA_DIR)
-	rm $(DATA_DIR)/allComplexes.psimi.zip
+	wget http://mips.helmholtz-muenchen.de/corum/download/allComplexes.psi-mi --output-document=$(DATA_DIR)/allComplexes.psimi
 
 # InnateDB
 InnateDB : structure gen.cnf $(DATA_DIR)/innatedb_all.mitab
@@ -62,13 +61,10 @@ $(DATA_DIR)/intact-micluster.txt :
 	rm $(DATA_DIR)/intact-micluster_negative.txt
 
 # MINT
-MINT : structure gen.cnf $(DATA_DIR)/mint-full-binary.mitab26.txt $(DATA_DIR)/mint-full-complexes.mitab26.txt
-	perl mitab.pl -i int.cnf -g gen.cnf $(DATA_DIR)/mint-full-binary.mitab26.txt 
-	perl mitab.pl -i int.cnf -g gen.cnf $(DATA_DIR)/mint-full-complexes.mitab26.txt
-$(DATA_DIR)/mint-full-binary.mitab26.txt :
-	wget ftp://mint.bio.uniroma2.it/pub/release/mitab26/current/2013-03-26-mint-full-binary.mitab26.txt --output-document=$(DATA_DIR)/mint-full-binary.mitab26.txt
-$(DATA_DIR)/mint-full-complexes.mitab26.txt :
-	wget ftp://mint.bio.uniroma2.it/pub/release/mitab26/current/2013-03-26-mint-full-complexes.mitab26.txt --output-document=$(DATA_DIR)/mint-full-complexes.mitab26.txt
+MINT : structure gen.cnf $(DATA_DIR)/mint.mitab26.txt
+	perl mitab.pl -i int.cnf -g gen.cnf $(DATA_DIR)/mint.mitab26.txt
+$(DATA_DIR)/mint.mitab26.txt :
+	wget http://mint.bio.uniroma2.it/mitab/MINT_MiTab.txt --output-document=$(DATA_DIR)/mint.mitab26.txt
 
 # MatrixDB
 MatrixDB : structure gen.cnf $(DATA_DIR)/matrixdb_CORE.tab 

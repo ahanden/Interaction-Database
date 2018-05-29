@@ -15,3 +15,11 @@ CREATE TABLE `sources` (
 	`int_type`         varchar(7),
 	UNIQUE KEY (`int_id`, `pubmed_id`, `detection_method`, `int_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+DROP TABLE IF EXISTS `psimi`;
+CREATE TABLE `psimi` (
+	`id`	varchar(7),
+	`name`	varchar(255),
+	`description`	varchar(255),
+	PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
